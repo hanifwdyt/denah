@@ -12,7 +12,10 @@ ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# --ignore-scripts: pnpm v10 hard-fails on un-approved dependency build scripts in
+# CI. We don't need them — esbuild gets its binary from its optional platform
+# package, and core-js's script is just a funding notice.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY . .
 RUN pnpm build
