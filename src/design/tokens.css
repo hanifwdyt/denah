@@ -1,0 +1,46 @@
+:root {
+  /* ── graphite scale (cool, near-black) ───────────────────────────────── */
+  --bg-0: #0b0d11; /* deepest — canvas void */
+  --bg-1: #101319; /* app base */
+  --bg-2: #161a22; /* panels */
+  --bg-3: #1d222c; /* raised */
+  --bg-4: #262c38; /* hover */
+  --line: #2b313d; /* hairline border */
+  --line-soft: #20262f;
+
+  /* ── ink ─────────────────────────────────────────────────────────────── */
+  --ink-0: #eef1f6; /* primary text */
+  --ink-1: #aab2c0; /* secondary */
+  --ink-2: #6f7886; /* tertiary / labels */
+  --ink-3: #49515d; /* faint */
+
+  /* ── amber drafting-pencil signal ────────────────────────────────────── */
+  --amber: #f2a65a;
+  --amber-bright: #ffbe78;
+  --amber-dim: #b87637;
+  --amber-glow: rgba(242, 166, 90, 0.16);
+
+  /* ── secondary cool signal (selection / measure) ─────────────────────── */
+  --cyan: #67c2c8;
+  --danger: #e06b6b;
+
+  /* ── blueprint grid ──────────────────────────────────────────────────── */
+  --grid-minor: rgba(126, 142, 168, 0.06);
+  --grid-major: rgba(126, 142, 168, 0.13);
+  --wall: #d7deea;
+  --wall-fill: #aeb8c8;
+
+  /* ── type ────────────────────────────────────────────────────────────── */
+  --sans: "Hanken Grotesk", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ── geometry ────────────────────────────────────────────────────────── */
+  --r-sm: 7px;
+  --r-md: 11px;
+  --r-lg: 16px;
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 18px 40px -24px rgba(0, 0, 0, 0.9);
+  --shadow-pop: 0 24px 60px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px var(--line);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

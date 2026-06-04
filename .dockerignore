@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+.env.local
+*.log
+mcp/.denah-state.json
+mcp/node_modules
+.DS_Store

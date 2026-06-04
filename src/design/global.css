@@ -1,0 +1,114 @@
+@import "./tokens.css";
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg-1);
+  color: var(--ink-0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv01";
+}
+
+::selection {
+  background: var(--amber-glow);
+  color: var(--amber-bright);
+}
+
+/* tabular mono numerals everywhere they show up */
+.mono {
+  font-family: var(--mono);
+  font-feature-settings: "tnum", "zero";
+  letter-spacing: -0.01em;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* a11y: visible keyboard focus ring (mouse clicks stay clean) */
+:focus-visible {
+  outline: 2px solid var(--amber-bright);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* inputs already have their own border treatment — keep the ring tight */
+input:focus-visible,
+textarea:focus-visible {
+  outline-offset: 0;
+}
+
+/* respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* faint film grain over the whole app for atmosphere */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* thin custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-4);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line);
+  background-clip: content-box;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--amber-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
