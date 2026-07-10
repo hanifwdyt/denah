@@ -21,14 +21,18 @@ if (restored) {
   }));
 }
 
-// debounced autosave on level/units changes
+// debounced autosave on level/units/active-level changes (active level switches
+// don't touch `levels`, but must persist or a reload reopens the wrong floor)
 let lastLevels = useStore.getState().levels;
 let lastUnits = useStore.getState().settings.units;
+let lastActive = useStore.getState().activeLevelId;
 let timer: ReturnType<typeof setTimeout> | undefined;
 useStore.subscribe((state) => {
-  if (state.levels === lastLevels && state.settings.units === lastUnits) return;
+  if (state.levels === lastLevels && state.settings.units === lastUnits && state.activeLevelId === lastActive)
+    return;
   lastLevels = state.levels;
   lastUnits = state.settings.units;
+  lastActive = state.activeLevelId;
   clearTimeout(timer);
   timer = setTimeout(
     () =>
@@ -43,6 +47,11 @@ useStore.subscribe((state) => {
 
 // MCP live bridge — feature on hold.
 // initMcpSync();
+
+// dev-only hook for automated QA (never shipped: tree-shaken out of prod builds)
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__store = useStore;
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

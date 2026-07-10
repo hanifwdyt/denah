@@ -29,7 +29,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const STATE_FILE = process.env.DENAH_STATE_FILE || join(__dirname, ".denah-state.json");
 
 // ── scene state ──────────────────────────────────────────────────────────────
-const emptyScene = () => ({ nodes: {}, edges: {}, openings: {}, furniture: {}, zones: {}, roomNames: {}, labels: {} });
+const emptyScene = () => ({ nodes: {}, edges: {}, openings: {}, furniture: {}, zones: {}, roomNames: {}, labels: {}, dims: {} });
 const ZONE_TYPES = ["room", "terrace", "garden", "bathroom", "kitchen", "garage", "water"];
 const EDGE_KINDS = ["wall", "low", "railing", "open"];
 const OPENING_KINDS = ["door", "window"];
@@ -513,6 +513,7 @@ function normalizeScene(s) {
     // round-trip doesn't drop room names / labels.
     roomNames: s.roomNames || {},
     labels: s.labels || {},
+    dims: s.dims || {},
   };
 }
 

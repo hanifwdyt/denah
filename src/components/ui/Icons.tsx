@@ -173,6 +173,14 @@ export const ILabel = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const IDim = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 17V7M21 17V7" />
+    <path d="M3 12h18" />
+    <path d="M6 9.5L3 12l3 2.5M18 9.5l3 2.5-3 2.5" />
+  </svg>
+);
+
 export const IHelp = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <circle cx="12" cy="12" r="9" />

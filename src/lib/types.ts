@@ -255,6 +255,20 @@ export interface Label {
   text: string;
 }
 
+/**
+ * A manual dimension annotation between two world points (cm). The dimension
+ * line is drawn parallel to a→b, shifted `offset` cm along the +perpendicular
+ * (sign flips the side). The measured length is always dist(a,b).
+ */
+export interface Dim {
+  id: ID;
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  offset: number;
+}
+
 export interface Scene {
   nodes: Record<ID, Node>;
   edges: Record<ID, Edge>;
@@ -269,6 +283,8 @@ export interface Scene {
   roomNames: Record<string, string>;
   /** Free text annotations keyed by id. */
   labels: Record<ID, Label>;
+  /** Manual dimension annotations keyed by id. */
+  dims: Record<ID, Dim>;
 }
 
 export const emptyScene = (): Scene => ({
@@ -279,6 +295,7 @@ export const emptyScene = (): Scene => ({
   zones: {},
   roomNames: {},
   labels: {},
+  dims: {},
 });
 
 /**
@@ -289,7 +306,7 @@ export const roomSignature = (nodeIds: ID[]): string => [...nodeIds].sort().join
 
 // Selection ------------------------------------------------------------------
 
-export type SelectionKind = "node" | "edge" | "opening" | "furniture" | "zone" | "label";
+export type SelectionKind = "node" | "edge" | "opening" | "furniture" | "zone" | "label" | "dim";
 export interface Selection {
   kind: SelectionKind;
   id: ID;
@@ -306,7 +323,7 @@ export const sameSelection = (a: Selection, b: Selection): boolean => a.kind ===
 
 // Tools ----------------------------------------------------------------------
 
-export type Tool = "select" | "wall" | "door" | "window" | "furniture" | "zone" | "label" | "pan";
+export type Tool = "select" | "wall" | "door" | "window" | "furniture" | "zone" | "label" | "dimension" | "pan";
 
 // Levels / multi-floor -------------------------------------------------------
 

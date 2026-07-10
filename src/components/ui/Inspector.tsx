@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useStore, firstSelection } from "../../store/useStore";
 import { detectRooms } from "../../lib/rooms";
-import { fmtArea } from "../../lib/geometry";
+import { fmtArea, fmtLen } from "../../lib/geometry";
 import { validateScene } from "../../lib/validation";
 import { ITrash, IRotate, IClose, IFlipH, ISwing, IWarn } from "./Icons";
 import { FURNITURE } from "../../lib/furniture";
@@ -29,6 +29,7 @@ export function Inspector() {
   const updateFurniture = useStore((s) => s.updateFurniture);
   const updateZone = useStore((s) => s.updateZone);
   const updateLabel = useStore((s) => s.updateLabel);
+  const updateDim = useStore((s) => s.updateDim);
   const rotateSelected = useStore((s) => s.rotateSelected);
   const deleteSelected = useStore((s) => s.deleteSelected);
   const clearSelection = useStore((s) => s.clearSelection);
@@ -49,6 +50,7 @@ export function Inspector() {
   const furn = !multi && sel?.kind === "furniture" ? scene.furniture[sel.id] : null;
   const zone = !multi && sel?.kind === "zone" ? scene.zones[sel.id] : null;
   const label = !multi && sel?.kind === "label" ? scene.labels[sel.id] : null;
+  const dim = !multi && sel?.kind === "dim" ? scene.dims?.[sel.id] : null;
 
   if (!open) return null;
 
@@ -64,10 +66,12 @@ export function Inspector() {
             ? "Floor zone"
             : label
               ? "Text label"
-              : "Project";
+              : dim
+                ? "Dimension"
+                : "Project";
   const title = multi
     ? `${selection.length} items`
-    : edge || opening || furn || zone || label
+    : edge || opening || furn || zone || label || dim
       ? "Properties"
       : "Overview";
 
@@ -140,7 +144,18 @@ export function Inspector() {
           />
         )}
 
-        {!multi && !edge && !opening && !furn && !zone && !label && (
+        {dim && (
+          <DimPanel
+            length={Math.hypot(dim.bx - dim.ax, dim.by - dim.ay)}
+            offset={dim.offset}
+            units={units}
+            onOffset={(v) => updateDim(dim.id, { offset: v })}
+            onFlip={() => updateDim(dim.id, { offset: -dim.offset })}
+            onDelete={deleteSelected}
+          />
+        )}
+
+        {!multi && !edge && !opening && !furn && !zone && !label && !dim && (
           <>
             <div className="stat-grid" style={{ marginBottom: 16 }}>
               <div className="stat">
@@ -556,6 +571,41 @@ function LabelPanel(props: { text: string; onText: (v: string) => void; onDelete
       </div>
       <button className="btn-ghost btn-danger" onClick={props.onDelete} style={{ marginTop: 4 }}>
         <ITrash width={15} height={15} /> Delete label
+      </button>
+    </>
+  );
+}
+
+function DimPanel(props: {
+  length: number;
+  offset: number;
+  units: "metric" | "imperial";
+  onOffset: (v: number) => void;
+  onFlip: () => void;
+  onDelete: () => void;
+}) {
+  const mag = Math.abs(props.offset);
+  return (
+    <>
+      <div className="field">
+        <div className="field-label">
+          <span>Measured length</span>
+          <span className="val mono">{fmtLen(props.length, props.units)}</span>
+        </div>
+      </div>
+      <NumberField
+        label="Line offset"
+        value={mag}
+        min={0}
+        max={300}
+        step={5}
+        onChange={(v) => props.onOffset(props.offset < 0 ? -v : v)}
+      />
+      <button className="btn-ghost" onClick={props.onFlip} style={{ marginTop: 4 }}>
+        <IFlipH width={15} height={15} /> Flip side
+      </button>
+      <button className="btn-ghost btn-danger" onClick={props.onDelete} style={{ marginTop: 8 }}>
+        <ITrash width={15} height={15} /> Delete dimension
       </button>
     </>
   );

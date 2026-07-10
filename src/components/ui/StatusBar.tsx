@@ -8,6 +8,7 @@ const HINTS: Record<string, string> = {
   furniture: "Pick an item below · click to place · R to rotate",
   zone: "Pick a floor type below · click inside a room to tag it",
   label: "Click anywhere to drop a text label",
+  dimension: "Click two points to measure · snaps to corners · Esc to cancel",
   pan: "Drag to pan · scroll to zoom",
 };
 

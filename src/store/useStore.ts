@@ -18,6 +18,7 @@ import {
   type ZoneType,
   type Level,
   type Label,
+  type Dim,
   emptyScene,
   sameSelection,
   DEFAULTS,
@@ -151,6 +152,10 @@ interface StoreState {
   addLabel: (x: number, y: number, text: string) => void;
   updateLabel: (id: ID, patch: Partial<Omit<Label, "id">>) => void;
 
+  // dimensions ----------------------------------------------------------
+  addDim: (a: Vec2, b: Vec2, offset?: number) => void;
+  updateDim: (id: ID, patch: Partial<Omit<Dim, "id">>) => void;
+
   // levels --------------------------------------------------------------
   addLevel: (name?: string) => void;
   removeLevel: (id: ID) => void;
@@ -188,6 +193,7 @@ export const normScene = (s: Partial<Scene> | null | undefined): Scene => ({
   zones: s?.zones ?? {},
   roomNames: s?.roomNames ?? {},
   labels: s?.labels ?? {},
+  dims: s?.dims ?? {},
 });
 
 /** snapshot the current level set for history */
@@ -510,6 +516,8 @@ export const useStore = create<StoreState>((set, get) => {
             delete draft.zones[sel.id];
           } else if (sel.kind === "label") {
             delete draft.labels[sel.id];
+          } else if (sel.kind === "dim") {
+            delete draft.dims[sel.id];
           }
         }
       });
@@ -538,6 +546,30 @@ export const useStore = create<StoreState>((set, get) => {
       commit((draft) => {
         const l = draft.labels[id];
         if (l) Object.assign(l, patch);
+      }),
+
+    // dimensions ----------------------------------------------------------
+    addDim: (a, b, offset = 40) => {
+      let newId = "";
+      commit((draft) => {
+        const id = uid("dim");
+        newId = id;
+        draft.dims[id] = {
+          id,
+          ax: Math.round(a.x),
+          ay: Math.round(a.y),
+          bx: Math.round(b.x),
+          by: Math.round(b.y),
+          offset,
+        };
+      });
+      set({ selection: [{ kind: "dim", id: newId }] });
+    },
+
+    updateDim: (id, patch) =>
+      commit((draft) => {
+        const d = draft.dims[id];
+        if (d) Object.assign(d, patch);
       }),
 
     // levels ------------------------------------------------------------

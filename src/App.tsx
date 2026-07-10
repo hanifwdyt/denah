@@ -37,6 +37,7 @@ const KEY_TOOL: Record<string, Tool> = {
   b: "furniture",
   z: "zone",
   l: "label",
+  m: "dimension",
   h: "pan",
 };
 

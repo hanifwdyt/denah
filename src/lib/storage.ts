@@ -31,6 +31,7 @@ function normScene(s: Partial<Scene> | null | undefined): Scene {
     zones: s?.zones ?? {},
     roomNames: s?.roomNames ?? {},
     labels: s?.labels ?? {},
+    dims: s?.dims ?? {},
   };
 }
 

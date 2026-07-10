@@ -96,6 +96,15 @@ function unionBounds(scene: Scene): PlanGeometry["bounds"] {
     acc(f.x + f.w / 2, f.y + f.d / 2);
   }
   for (const l of Object.values(scene.labels ?? {})) acc(l.x, l.y);
+  for (const d of Object.values(scene.dims ?? {})) {
+    acc(d.ax, d.ay);
+    acc(d.bx, d.by);
+    // include the offset dimension line so it isn't clipped at the sheet edge
+    const dir = norm(sub({ x: d.bx, y: d.by }, { x: d.ax, y: d.ay }));
+    const n = perp(dir);
+    acc(d.ax + n.x * d.offset, d.ay + n.y * d.offset);
+    acc(d.bx + n.x * d.offset, d.by + n.y * d.offset);
+  }
   if (!isFinite(minX)) return { ...EMPTY_BOUNDS };
   return { minX, minY, maxX, maxY };
 }
@@ -260,6 +269,42 @@ export function buildPlanGeometry(scene: Scene, units: Units, roomNames: Record<
       y: mid.y - nrm.y * 6,
       text: fmtLen(L, units),
       size: 8,
+      fill: INK.dim,
+      anchor: "middle",
+      mono: true,
+    });
+  }
+
+  // 4b. manual dimension annotations -------------------------------------------
+  for (const d of Object.values(scene.dims ?? {})) {
+    const A = { x: d.ax, y: d.ay };
+    const B = { x: d.bx, y: d.by };
+    const L = Math.hypot(B.x - A.x, B.y - A.y);
+    if (L < 1) continue;
+    const dir = norm(sub(B, A));
+    const n = perp(dir);
+    const A2 = { x: A.x + n.x * d.offset, y: A.y + n.y * d.offset };
+    const B2 = { x: B.x + n.x * d.offset, y: B.y + n.y * d.offset };
+    const sgn = Math.sign(d.offset) || 1;
+    // extension lines (small gap at the measured point, overshoot past the line)
+    const gapA = { x: A.x + n.x * sgn * 4, y: A.y + n.y * sgn * 4 };
+    const gapB = { x: B.x + n.x * sgn * 4, y: B.y + n.y * sgn * 4 };
+    const extA = { x: A2.x + n.x * sgn * 6, y: A2.y + n.y * sgn * 6 };
+    const extB = { x: B2.x + n.x * sgn * 6, y: B2.y + n.y * sgn * 6 };
+    dims.push({ pts: [gapA, extA], stroke: INK.dim, width: 0.8 });
+    dims.push({ pts: [gapB, extB], stroke: INK.dim, width: 0.8 });
+    dims.push({ pts: [A2, B2], stroke: INK.dim, width: 1 });
+    // 45° oblique ticks
+    const td = norm({ x: dir.x + n.x, y: dir.y + n.y });
+    const tk = 5;
+    dims.push({ pts: [{ x: A2.x - td.x * tk, y: A2.y - td.y * tk }, { x: A2.x + td.x * tk, y: A2.y + td.y * tk }], stroke: INK.dim, width: 1.2 });
+    dims.push({ pts: [{ x: B2.x - td.x * tk, y: B2.y - td.y * tk }, { x: B2.x + td.x * tk, y: B2.y + td.y * tk }], stroke: INK.dim, width: 1.2 });
+    const mid = lerp(A2, B2, 0.5);
+    texts.push({
+      x: mid.x - n.x * sgn * 8,
+      y: mid.y - n.y * sgn * 8,
+      text: fmtLen(L, units),
+      size: 9,
       fill: INK.dim,
       anchor: "middle",
       mono: true,

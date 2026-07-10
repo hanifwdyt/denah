@@ -1,6 +1,6 @@
 import { useStore } from "../../store/useStore";
 import type { Tool } from "../../lib/types";
-import { ICursor, IWall, IDoor, IWindow, IFurniture, IZone, IPan, ILabel } from "./Icons";
+import { ICursor, IWall, IDoor, IWindow, IFurniture, IZone, IPan, ILabel, IDim } from "./Icons";
 
 const TOOLS: { id: Tool; label: string; key: string; Icon: typeof IWall }[] = [
   { id: "select", label: "Select", key: "V", Icon: ICursor },
@@ -10,6 +10,7 @@ const TOOLS: { id: Tool; label: string; key: string; Icon: typeof IWall }[] = [
   { id: "furniture", label: "Furniture", key: "B", Icon: IFurniture },
   { id: "zone", label: "Zone / floor", key: "Z", Icon: IZone },
   { id: "label", label: "Text label", key: "L", Icon: ILabel },
+  { id: "dimension", label: "Dimension / measure", key: "M", Icon: IDim },
   { id: "pan", label: "Pan", key: "H", Icon: IPan },
 ];
 
@@ -34,7 +35,7 @@ export function Toolbar() {
             </span>
           </button>
           {i === 0 && <div className="sep" />}
-          {i === 6 && <div className="sep" />}
+          {i === 7 && <div className="sep" />}
         </div>
       ))}
     </div>

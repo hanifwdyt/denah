@@ -8,6 +8,7 @@ import {
   snap,
   pickEdge,
   projectOnArc,
+  projectOnSegment,
   arcPoints,
   arcLength,
   dist,
@@ -68,7 +69,7 @@ const C = {
 // A live drag may move many things at once (multi-select). We track per-id deltas.
 interface DragState {
   /** what the user grabbed (drives cursor + snapping reference) */
-  kind: "node" | "furniture" | "zone" | "label" | "edge" | "multi";
+  kind: "node" | "furniture" | "zone" | "label" | "dim" | "edge" | "multi";
   /** primary id the user grabbed (for single-target snapping) */
   id: ID;
   /** world drag delta applied to every dragged item */
@@ -79,6 +80,7 @@ interface DragState {
   furniture: { id: ID; x0: number; y0: number }[];
   zones: { id: ID; x0: number; y0: number }[];
   labels: { id: ID; x0: number; y0: number }[];
+  dims: { id: ID; ax0: number; ay0: number; bx0: number; by0: number }[];
   /** anchor world point at drag start (for delta math) */
   ax: number;
   ay: number;
@@ -125,6 +127,8 @@ export function Canvas2D() {
   const moveFurniture = useStore((s) => s.moveFurniture);
   const updateLabel = useStore((s) => s.updateLabel);
   const addLabel = useStore((s) => s.addLabel);
+  const addDim = useStore((s) => s.addDim);
+  const updateDim = useStore((s) => s.updateDim);
   const updateEdge = useStore((s) => s.updateEdge);
   const beginGesture = useStore((s) => s.beginGesture);
   const endGesture = useStore((s) => s.endGesture);
@@ -134,6 +138,8 @@ export function Canvas2D() {
   const [guides, setGuides] = useState<AlignGuide[]>([]);
   const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
   const [precision, setPrecision] = useState<PrecisionInput | null>(null);
+  /** first point of an in-progress dimension (tape measure) */
+  const [dimStart, setDimStart] = useState<Vec2 | null>(null);
   const panning = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const moved = useRef(false);
   // multi-touch (pinch zoom + two-finger pan)
@@ -166,7 +172,9 @@ export function Canvas2D() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.w === 800]);
 
-  // fit view to content when requested (e.g. after an MCP-generated plan)
+  // fit view to content when requested (e.g. after an MCP-generated plan).
+  // Fits into the region NOT covered by floating UI (toolbar left, inspector
+  // right, view toggle top, level tabs bottom) so content stays clickable.
   useEffect(() => {
     if (fitNonce === 0) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -180,13 +188,24 @@ export function Canvas2D() {
       t(f.x + f.w / 2, f.y + f.d / 2);
     }
     if (!isFinite(minX)) return;
-    const pad = 120;
+    const wide = size.w > 820;
+    const insetL = wide ? 88 : 16; // floating toolbar
+    const insetR = wide && useStore.getState().inspectorOpen ? 310 : 16; // inspector
+    const insetT = 72; // view toggle
+    const insetB = 64; // level tabs
+    const pad = 48;
+    const availW = Math.max(80, size.w - insetL - insetR - pad);
+    const availH = Math.max(80, size.h - insetT - insetB - pad);
     const cw = Math.max(1, maxX - minX);
     const ch = Math.max(1, maxY - minY);
-    const zoom = Math.max(0.12, Math.min(3, Math.min((size.w - pad) / cw, (size.h - pad) / ch)));
+    const zoom = Math.max(0.12, Math.min(3, Math.min(availW / cw, availH / ch)));
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
-    setViewport({ zoom, panX: size.w / 2 - cx * zoom, panY: size.h / 2 - cy * zoom });
+    setViewport({
+      zoom,
+      panX: insetL + (size.w - insetL - insetR) / 2 - cx * zoom,
+      panY: insetT + (size.h - insetT - insetB) / 2 - cy * zoom,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitNonce]);
 
@@ -194,6 +213,19 @@ export function Canvas2D() {
   useEffect(() => {
     if (precision) lenInputRef.current?.focus();
   }, [precision !== null]);
+
+  // dimension drafting resets on tool switch / Escape
+  useEffect(() => {
+    if (tool !== "dimension" && dimStart) setDimStart(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDimStart(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ── effective node position (respects live drag) ────────────────────────
   const dragNodeDelta = (id: ID): Vec2 | null => {
@@ -241,6 +273,14 @@ export function Canvas2D() {
       anchor: draftAnchor ? scene.nodes[draftAnchor] : null,
       ortho: settings.snapOrtho || shift,
       excludeNodeId: exclude,
+    });
+  /** snapping for dimension points: node > ortho-vs-first-point > grid */
+  const snapDim = (world: Vec2, shift: boolean) =>
+    snap(world, scene, {
+      grid: settings.grid,
+      zoom: vp.zoom,
+      anchor: dimStart,
+      ortho: settings.snapOrtho || shift,
     });
 
   // ── multi-touch helpers ──────────────────────────────────────────────────
@@ -296,6 +336,16 @@ export function Canvas2D() {
     for (const z of Object.values(scene.zones ?? {})) {
       if (dist(world, z) <= zr) return { kind: "zone", id: z.id };
     }
+    // dimension annotations: near the offset dimension line (or its endpoints)
+    const dr = 10 / vp.zoom;
+    for (const d of Object.values(scene.dims ?? {})) {
+      const A = { x: d.ax, y: d.ay };
+      const B = { x: d.bx, y: d.by };
+      const n = perp(norm(sub(B, A)));
+      const A2 = { x: A.x + n.x * d.offset, y: A.y + n.y * d.offset };
+      const B2 = { x: B.x + n.x * d.offset, y: B.y + n.y * d.offset };
+      if (projectOnSegment(world, A2, B2).distance <= dr) return { kind: "dim", id: d.id };
+    }
     for (const f of Object.values(scene.furniture)) {
       if (Math.abs(world.x - f.x) <= f.w / 2 && Math.abs(world.y - f.y) <= f.d / 2) {
         return { kind: "furniture", id: f.id };
@@ -317,6 +367,7 @@ export function Canvas2D() {
     const furniture: DragState["furniture"] = [];
     const zones: DragState["zones"] = [];
     const labels: DragState["labels"] = [];
+    const dims: DragState["dims"] = [];
     const nodeSet = new Set<ID>();
     const addNode = (id: ID) => {
       if (nodeSet.has(id)) return;
@@ -342,9 +393,12 @@ export function Canvas2D() {
       } else if (sel.kind === "label") {
         const l = scene.labels[sel.id];
         if (l) labels.push({ id: sel.id, x0: l.x, y0: l.y });
+      } else if (sel.kind === "dim") {
+        const d = scene.dims[sel.id];
+        if (d) dims.push({ id: sel.id, ax0: d.ax, ay0: d.ay, bx0: d.bx, by0: d.by });
       }
     }
-    return { kind, id: primaryId, dx: 0, dy: 0, nodes, furniture, zones, labels, ax: world.x, ay: world.y };
+    return { kind, id: primaryId, dx: 0, dy: 0, nodes, furniture, zones, labels, dims, ax: world.x, ay: world.y };
   };
 
   // ── pointer down ────────────────────────────────────────────────────────
@@ -398,6 +452,18 @@ export function Canvas2D() {
     if (tool === "label") {
       const text = (typeof window !== "undefined" ? window.prompt("Label text", "Label") : "Label") ?? "";
       if (text.trim()) addLabel(world.x, world.y, text.trim());
+      return;
+    }
+
+    if (tool === "dimension") {
+      const s = snapDim(world, shift);
+      if (!dimStart) {
+        setDimStart(s.point);
+      } else {
+        if (dist(dimStart, s.point) > 2) addDim(dimStart, s.point);
+        setDimStart(null);
+        setPreview(null);
+      }
       return;
     }
 
@@ -562,6 +628,12 @@ export function Canvas2D() {
     }
 
     if (guides.length) setGuides([]);
+    if (tool === "dimension") {
+      const s = snapDim(world, shift);
+      setCursor(s.point);
+      setPreview({ p: s.point, kind: s.kind });
+      return;
+    }
     const s = doSnap(world, shift);
     setCursor(s.point);
     if (tool === "furniture") setPreview({ p: s.point, kind: s.kind });
@@ -598,6 +670,13 @@ export function Canvas2D() {
         for (const f of drag.furniture) moveFurniture(f.id, Math.round(f.x0 + drag.dx), Math.round(f.y0 + drag.dy));
         for (const z of drag.zones) updateZone(z.id, { x: Math.round(z.x0 + drag.dx), y: Math.round(z.y0 + drag.dy) });
         for (const l of drag.labels) updateLabel(l.id, { x: Math.round(l.x0 + drag.dx), y: Math.round(l.y0 + drag.dy) });
+        for (const d of drag.dims)
+          updateDim(d.id, {
+            ax: Math.round(d.ax0 + drag.dx),
+            ay: Math.round(d.ay0 + drag.dy),
+            bx: Math.round(d.bx0 + drag.dx),
+            by: Math.round(d.by0 + drag.dy),
+          });
         endGesture();
       }
       setDrag(null);
@@ -642,7 +721,7 @@ export function Canvas2D() {
   }, [scene.furniture, selection]);
 
   const cursorStyle =
-    tool === "wall" || tool === "furniture" || tool === "zone" || tool === "label"
+    tool === "wall" || tool === "furniture" || tool === "zone" || tool === "label" || tool === "dimension"
       ? "crosshair"
       : tool === "pan"
         ? "grab"
@@ -787,6 +866,26 @@ export function Canvas2D() {
           <Layer listening={false}>{renderDimensions(liveScene, nodePos, k, units)}</Layer>
         )}
 
+        {/* manual dimension annotations */}
+        <Layer listening={false}>
+          {Object.values(scene.dims ?? {}).map((d) => {
+            const dd = drag?.dims.find((x) => x.id === d.id);
+            const a = dd ? { x: dd.ax0 + drag!.dx, y: dd.ay0 + drag!.dy } : { x: d.ax, y: d.ay };
+            const b = dd ? { x: dd.bx0 + drag!.dx, y: dd.by0 + drag!.dy } : { x: d.bx, y: d.by };
+            return (
+              <DimAnnotation
+                key={d.id}
+                a={a}
+                b={b}
+                offset={d.offset}
+                selected={selectionHas(selection, "dim", d.id)}
+                k={k}
+                units={units}
+              />
+            );
+          })}
+        </Layer>
+
         {/* labels (free text annotations) */}
         <Layer listening={false}>
           {Object.values(scene.labels ?? {}).map((l) => {
@@ -866,6 +965,10 @@ export function Canvas2D() {
             <DraftPreview from={nodePos(draftAnchor)} to={preview.p} k={k} units={units} />
           )}
           {tool === "wall" && preview && <SnapMarker p={preview.p} kind={preview.kind} k={k} />}
+          {tool === "dimension" && dimStart && preview && (
+            <DraftPreview from={dimStart} to={preview.p} k={k} units={units} />
+          )}
+          {tool === "dimension" && preview && <SnapMarker p={preview.p} kind={preview.kind} k={k} />}
           {tool === "furniture" && preview && (
             <Group opacity={0.5}>
               <FurnitureShape
@@ -993,6 +1096,9 @@ function selectInBox(scene: Scene, box: Box): Selection[] {
   }
   for (const l of Object.values(scene.labels ?? {})) {
     if (pointInBox(l, box)) out.push({ kind: "label", id: l.id });
+  }
+  for (const d of Object.values(scene.dims ?? {})) {
+    if (segInBox({ x: d.ax, y: d.ay }, { x: d.bx, y: d.by }, box)) out.push({ kind: "dim", id: d.id });
   }
   return out;
 }
@@ -1554,6 +1660,67 @@ function renderDimensions(
     );
   }
   return els;
+}
+
+// ── manual dimension annotation (extension lines + ticks + measurement) ────────
+function DimAnnotation({
+  a,
+  b,
+  offset,
+  selected,
+  k,
+  units,
+}: {
+  a: Vec2;
+  b: Vec2;
+  offset: number;
+  selected: boolean;
+  k: number;
+  units: Units;
+}) {
+  const L = dist(a, b);
+  if (L < 1) return null;
+  const dir = norm(sub(b, a));
+  const n = perp(dir);
+  const A2 = { x: a.x + n.x * offset, y: a.y + n.y * offset };
+  const B2 = { x: b.x + n.x * offset, y: b.y + n.y * offset };
+  const col = selected ? C.wallSel : C.dim;
+  const faint = selected ? "rgba(242,166,90,0.55)" : "rgba(103,194,200,0.45)";
+  const sgn = Math.sign(offset) || 1;
+  const over = 6 * k; // extension line overshoot past the dim line
+  const gapA = { x: a.x + n.x * sgn * 4 * k, y: a.y + n.y * sgn * 4 * k };
+  const gapB = { x: b.x + n.x * sgn * 4 * k, y: b.y + n.y * sgn * 4 * k };
+  const extA = { x: A2.x + n.x * sgn * over, y: A2.y + n.y * sgn * over };
+  const extB = { x: B2.x + n.x * sgn * over, y: B2.y + n.y * sgn * over };
+  // 45° oblique architectural ticks at both ends of the dimension line
+  const td = norm({ x: dir.x + n.x, y: dir.y + n.y });
+  const tk = 5 * k;
+  const mid = lerp(A2, B2, 0.5);
+  let deg = (Math.atan2(B2.y - A2.y, B2.x - A2.x) * 180) / Math.PI;
+  if (deg > 90 || deg < -90) deg += 180;
+
+  return (
+    <Group>
+      <Line points={[gapA.x, gapA.y, extA.x, extA.y]} stroke={faint} strokeWidth={k} />
+      <Line points={[gapB.x, gapB.y, extB.x, extB.y]} stroke={faint} strokeWidth={k} />
+      <Line points={[A2.x, A2.y, B2.x, B2.y]} stroke={col} strokeWidth={1.3 * k} />
+      <Line points={[A2.x - td.x * tk, A2.y - td.y * tk, A2.x + td.x * tk, A2.y + td.y * tk]} stroke={col} strokeWidth={1.6 * k} />
+      <Line points={[B2.x - td.x * tk, B2.y - td.y * tk, B2.x + td.x * tk, B2.y + td.y * tk]} stroke={col} strokeWidth={1.6 * k} />
+      <Text
+        text={fmtLen(L, units)}
+        x={mid.x}
+        y={mid.y}
+        rotation={deg}
+        offsetX={30 * k}
+        offsetY={16 * k}
+        width={60 * k}
+        align="center"
+        fontFamily="Geist Mono"
+        fontSize={11.5 * k}
+        fill={col}
+      />
+    </Group>
+  );
 }
 
 // ── draft preview + snap marker ────────────────────────────────────────────────
